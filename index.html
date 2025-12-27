@@ -1,0 +1,499 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Concentrato</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        body {
+            background-color: #050505;
+            color: #e5e5e5;
+            overflow: hidden;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+            user-select: none;
+            -webkit-tap-highlight-color: transparent;
+        }
+
+        /* The Sand Filling Animation - Sky Color */
+        #sand-container {
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            background: linear-gradient(180deg, #0ea5e9 0%, #0284c7 100%);
+            transition: height 1s cubic-bezier(0.4, 0, 0.2, 1);
+            z-index: -1;
+            box-shadow: 0 -10px 30px rgba(14, 165, 233, 0.3);
+        }
+
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.05);
+            backdrop-filter: blur(15px);
+            -webkit-backdrop-filter: blur(15px);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        input[type="number"]::-webkit-inner-spin-button,
+        input[type="number"]::-webkit-outer-spin-button {
+            -webkit-appearance: none;
+            margin: 0;
+        }
+
+        input[type="date"] {
+            color-scheme: dark;
+        }
+
+        /* Chart customization */
+        .chart-container {
+            position: relative;
+            height: 250px;
+            width: 100%;
+        }
+    </style>
+</head>
+<body>
+
+    <!-- Main Focus Screen -->
+    <div id="focus-view" class="h-screen w-full flex flex-col items-center justify-center relative">
+        <div id="sand-container" style="height: 0%;"></div>
+        
+        <div class="text-center z-10 pointer-events-none">
+            <h1 id="timer-display" class="text-8xl font-thin tracking-tighter mb-4 drop-shadow-2xl">00:00</h1>
+            <p id="status-text" class="text-xs uppercase tracking-[0.3em] opacity-60">Tap to start</p>
+        </div>
+
+        <!-- Start/Pause Trigger (Full Screen) -->
+        <div id="timer-trigger" class="absolute inset-0 z-0"></div>
+    </div>
+
+    <!-- UI Controls -->
+    <div class="fixed bottom-10 left-8 flex gap-4 z-20">
+        <button id="stats-btn" class="w-12 h-12 rounded-full glass-panel flex items-center justify-center active:scale-90 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M18 17V9"/><path d="M13 17V5"/><path d="M8 17v-3"/></svg>
+        </button>
+    </div>
+
+    <div class="fixed bottom-10 right-8 z-20">
+        <button id="settings-btn" class="w-14 h-14 rounded-full bg-white text-black flex items-center justify-center shadow-xl active:scale-90 transition-transform">
+            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><polyline points="12 6 12 12 16 14"/></svg>
+        </button>
+    </div>
+
+    <!-- Duration Modal -->
+    <div id="settings-modal" class="fixed inset-0 bg-black/90 flex items-center justify-center p-6 z-30 hidden">
+        <div class="glass-panel w-full max-w-sm rounded-[2.5rem] p-8 border-white/20">
+            <h2 class="text-2xl font-semibold mb-1">Concentrato</h2>
+            <p class="text-sm text-white/40 mb-8">Set your focus goal</p>
+            
+            <div class="grid grid-cols-3 gap-3 mb-8">
+                <button class="time-opt p-4 rounded-2xl border border-white/10 hover:bg-white/10 text-sm font-medium transition-colors" data-mins="25">25m</button>
+                <button class="time-opt p-4 rounded-2xl border border-white/10 hover:bg-white/10 text-sm font-medium transition-colors" data-mins="45">45m</button>
+                <button class="time-opt p-4 rounded-2xl border border-white/10 hover:bg-white/10 text-sm font-medium transition-colors" data-mins="60">1h</button>
+            </div>
+
+            <div class="flex gap-4 mb-10">
+                <div class="relative flex-1">
+                    <label class="text-[10px] uppercase tracking-widest opacity-40 absolute left-4 top-3">Hours</label>
+                    <input type="number" id="custom-hour-input" placeholder="0" min="0" max="23" class="w-full bg-white/5 border border-white/10 rounded-2xl pt-8 pb-4 px-4 text-xl outline-none focus:border-sky-500 transition-colors">
+                </div>
+                <div class="relative flex-1">
+                    <label class="text-[10px] uppercase tracking-widest opacity-40 absolute left-4 top-3">Minutes</label>
+                    <input type="number" id="custom-min-input" placeholder="0" min="0" max="59" class="w-full bg-white/5 border border-white/10 rounded-2xl pt-8 pb-4 px-4 text-xl outline-none focus:border-sky-500 transition-colors">
+                </div>
+            </div>
+
+            <button id="apply-settings" class="w-full py-5 bg-sky-500 text-white rounded-2xl font-bold shadow-lg shadow-sky-500/20 active:scale-95 transition-transform">Start Focused Session</button>
+            <button id="close-settings" class="w-full py-4 text-white/40 text-sm mt-2">Cancel</button>
+        </div>
+    </div>
+
+    <!-- Stats Modal -->
+    <div id="stats-modal" class="fixed inset-0 bg-black z-40 hidden overflow-y-auto">
+        <div class="p-8 max-w-lg mx-auto pb-24">
+            <div class="flex justify-between items-center mb-10">
+                <div>
+                    <h2 class="text-4xl font-bold">Flow</h2>
+                    <p class="text-white/40 text-sm">Your focus journey</p>
+                </div>
+                <button id="close-stats" class="w-10 h-10 rounded-full glass-panel flex items-center justify-center">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+                </button>
+            </div>
+
+            <div class="grid grid-cols-2 gap-4 mb-6">
+                <div class="glass-panel p-6 rounded-3xl">
+                    <p id="stat-label-total" class="text-[10px] opacity-40 uppercase tracking-widest mb-1">Focused Today</p>
+                    <p id="today-total" class="text-3xl font-light">0m</p>
+                </div>
+                <div class="glass-panel p-6 rounded-3xl">
+                    <p id="stat-label-sessions" class="text-[10px] opacity-40 uppercase tracking-widest mb-1">Sessions</p>
+                    <p id="session-count" class="text-3xl font-light">0</p>
+                </div>
+            </div>
+
+            <!-- Chart Card -->
+            <div class="glass-panel p-6 rounded-[2rem] mb-8">
+                <div class="flex flex-col gap-4 mb-6">
+                    <div class="flex justify-between items-center">
+                        <h3 class="text-sm font-medium opacity-70">Activity</h3>
+                        <select id="chart-filter" class="bg-white/10 px-3 py-1 rounded-full text-[10px] uppercase tracking-wider outline-none border-none">
+                            <option value="24h">24 Hours</option>
+                            <option value="7d">7 Days</option>
+                            <option value="30d">30 Days</option>
+                            <option value="12m">12 Months</option>
+                            <option value="custom">Custom Range</option>
+                        </select>
+                    </div>
+
+                    <div id="custom-range-container" class="hidden flex gap-2 items-center">
+                        <input type="date" id="start-date" class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] outline-none">
+                        <span class="opacity-20 text-[10px]">to</span>
+                        <input type="date" id="end-date" class="flex-1 bg-white/5 border border-white/10 rounded-xl px-3 py-2 text-[10px] outline-none">
+                    </div>
+                </div>
+                
+                <div class="chart-container">
+                    <canvas id="focusChart"></canvas>
+                </div>
+            </div>
+
+            <!-- History Section -->
+            <div id="history-list" class="space-y-3 mb-10">
+                <!-- Session items -->
+            </div>
+
+            <!-- Data Management -->
+            <div class="glass-panel p-6 rounded-3xl space-y-4">
+                <h3 class="text-xs font-bold uppercase tracking-widest opacity-40">Data Management</h3>
+                <div class="flex gap-3">
+                    <button id="export-btn" class="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium transition-colors">Backup Data</button>
+                    <button id="import-btn" class="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-medium transition-colors">Restore Data</button>
+                </div>
+                <input type="file" id="import-file" class="hidden" accept=".json">
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // State Management
+        let duration = 25 * 60; 
+        let timeLeft = duration;
+        let timerId = null;
+        let isActive = false;
+        let totalSecondsFocusedInCurrentSession = 0;
+
+        // DOM Elements
+        const timerDisplay = document.getElementById('timer-display');
+        const statusText = document.getElementById('status-text');
+        const sandContainer = document.getElementById('sand-container');
+        const settingsModal = document.getElementById('settings-modal');
+        const statsModal = document.getElementById('stats-modal');
+        const customHourInput = document.getElementById('custom-hour-input');
+        const customMinInput = document.getElementById('custom-min-input');
+        const chartFilter = document.getElementById('chart-filter');
+        const customRangeContainer = document.getElementById('custom-range-container');
+        const startDateInput = document.getElementById('start-date');
+        const endDateInput = document.getElementById('end-date');
+        const historyList = document.getElementById('history-list');
+        const importFile = document.getElementById('import-file');
+
+        function init() {
+            const today = new Date();
+            const lastWeek = new Date();
+            lastWeek.setDate(today.getDate() - 7);
+            
+            endDateInput.value = today.toISOString().split('T')[0];
+            startDateInput.value = lastWeek.toISOString().split('T')[0];
+
+            updateDisplay();
+            loadStats();
+            setupChartFilter();
+            setupDataManagement();
+        }
+
+        function updateDisplay() {
+            const h = Math.floor(timeLeft / 3600);
+            const m = Math.floor((timeLeft % 3600) / 60);
+            const s = timeLeft % 60;
+            
+            if (h > 0) {
+                timerDisplay.textContent = `${h}:${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            } else {
+                timerDisplay.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+            }
+            
+            const percentage = ((duration - timeLeft) / duration) * 100;
+            sandContainer.style.height = `${percentage}%`;
+        }
+
+        function toggleTimer() {
+            if (isActive) stopTimer();
+            else startTimer();
+        }
+
+        function startTimer() {
+            if (timeLeft <= 0) return;
+            isActive = true;
+            statusText.textContent = "Stay focused";
+            timerId = setInterval(() => {
+                if (timeLeft > 0) {
+                    timeLeft--;
+                    totalSecondsFocusedInCurrentSession++;
+                    updateDisplay();
+                } else {
+                    completeSession();
+                }
+            }, 1000);
+        }
+
+        function stopTimer() {
+            if (!isActive) return;
+            clearInterval(timerId);
+            isActive = false;
+            statusText.textContent = "Paused";
+            saveSessionProgress();
+        }
+
+        function completeSession() {
+            stopTimer();
+            statusText.textContent = "Well done";
+            if (navigator.vibrate) navigator.vibrate([100, 50, 100]);
+        }
+
+        function saveSessionProgress() {
+            if (totalSecondsFocusedInCurrentSession < 1) {
+                totalSecondsFocusedInCurrentSession = 0;
+                return;
+            }
+
+            const sessions = JSON.parse(localStorage.getItem('focus_sessions') || '[]');
+            sessions.push({
+                timestamp: Date.now(),
+                duration: totalSecondsFocusedInCurrentSession / 60 // in minutes
+            });
+            localStorage.setItem('focus_sessions', JSON.stringify(sessions));
+            totalSecondsFocusedInCurrentSession = 0;
+            loadStats();
+        }
+
+        document.addEventListener('visibilitychange', () => {
+            if (document.visibilityState === 'hidden' && isActive) {
+                stopTimer();
+            }
+        });
+
+        // Settings Logic
+        document.getElementById('settings-btn').onclick = () => settingsModal.classList.remove('hidden');
+        document.getElementById('close-settings').onclick = () => settingsModal.classList.add('hidden');
+        
+        document.querySelectorAll('.time-opt').forEach(opt => {
+            opt.onclick = () => {
+                const totalMins = parseInt(opt.dataset.mins);
+                const hrs = Math.floor(totalMins / 60);
+                const mins = totalMins % 60;
+                customHourInput.value = hrs > 0 ? hrs : "";
+                customMinInput.value = mins;
+                document.querySelectorAll('.time-opt').forEach(b => b.classList.remove('border-sky-500', 'bg-sky-500/10'));
+                opt.classList.add('border-sky-500', 'bg-sky-500/10');
+            };
+        });
+
+        document.getElementById('apply-settings').onclick = () => {
+            const h = parseInt(customHourInput.value) || 0;
+            const m = parseInt(customMinInput.value) || 0;
+            const totalSecs = (h * 3600) + (m * 60);
+            if (totalSecs > 0) {
+                duration = totalSecs;
+                timeLeft = duration;
+                totalSecondsFocusedInCurrentSession = 0;
+                updateDisplay();
+                settingsModal.classList.add('hidden');
+                startTimer();
+            }
+        };
+
+        document.getElementById('timer-trigger').onclick = toggleTimer;
+
+        // Analytics Logic
+        let focusChart = null;
+
+        document.getElementById('stats-btn').onclick = () => {
+            statsModal.classList.remove('hidden');
+            renderChart(chartFilter.value);
+            loadStats(chartFilter.value);
+        };
+
+        document.getElementById('close-stats').onclick = () => statsModal.classList.add('hidden');
+
+        function setupChartFilter() {
+            chartFilter.onchange = (e) => {
+                const val = e.target.value;
+                if (val === 'custom') customRangeContainer.classList.remove('hidden');
+                else customRangeContainer.classList.add('hidden');
+                renderChart(val);
+                loadStats(val);
+            };
+            startDateInput.onchange = () => { renderChart('custom'); loadStats('custom'); };
+            endDateInput.onchange = () => { renderChart('custom'); loadStats('custom'); };
+        }
+
+        // Data Backup and Restore
+        function setupDataManagement() {
+            document.getElementById('export-btn').onclick = () => {
+                const data = localStorage.getItem('focus_sessions') || '[]';
+                const blob = new Blob([data], { type: 'application/json' });
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `concentrato-backup-${new Date().toISOString().split('T')[0]}.json`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
+            };
+
+            document.getElementById('import-btn').onclick = () => importFile.click();
+
+            importFile.onchange = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (e) => {
+                    try {
+                        const json = JSON.parse(e.target.result);
+                        if (Array.isArray(json)) {
+                            if (confirm('Importing will merge with existing data. Continue?')) {
+                                const current = JSON.parse(localStorage.getItem('focus_sessions') || '[]');
+                                const merged = [...current, ...json].sort((a,b) => a.timestamp - b.timestamp);
+                                localStorage.setItem('focus_sessions', JSON.stringify(merged));
+                                loadStats(chartFilter.value);
+                                renderChart(chartFilter.value);
+                            }
+                        } else {
+                            throw new Error('Invalid format');
+                        }
+                    } catch (err) {
+                        alert('Error importing file. Please ensure it is a valid Concentrato backup.');
+                    }
+                };
+                reader.readAsText(file);
+            };
+        }
+
+        function loadStats(filter = '24h') {
+            const sessions = JSON.parse(localStorage.getItem('focus_sessions') || '[]');
+            let filteredSessions = [];
+            let labelSuffix = "Today";
+            const now = new Date();
+            
+            if (filter === '24h') {
+                const dayAgo = Date.now() - (24 * 3600 * 1000);
+                filteredSessions = sessions.filter(s => s.timestamp >= dayAgo);
+            } else if (filter === '7d') {
+                const weekAgo = new Date().setDate(now.getDate() - 7);
+                filteredSessions = sessions.filter(s => s.timestamp >= weekAgo);
+                labelSuffix = "7 Days";
+            } else if (filter === '30d') {
+                const monthAgo = new Date().setDate(now.getDate() - 30);
+                filteredSessions = sessions.filter(s => s.timestamp >= monthAgo);
+                labelSuffix = "30 Days";
+            } else if (filter === '12m') {
+                const yearAgo = new Date().setFullYear(now.getFullYear() - 1);
+                filteredSessions = sessions.filter(s => s.timestamp >= yearAgo);
+                labelSuffix = "12 Months";
+            } else if (filter === 'custom') {
+                const start = new Date(startDateInput.value).setHours(0,0,0,0);
+                const end = new Date(endDateInput.value).setHours(23,59,59,999);
+                filteredSessions = sessions.filter(s => s.timestamp >= start && s.timestamp <= end);
+                labelSuffix = "Period";
+            }
+
+            const totalMins = filteredSessions.reduce((acc, s) => acc + s.duration, 0);
+            document.getElementById('stat-label-total').textContent = `Focused ${labelSuffix}`;
+            document.getElementById('stat-label-sessions').textContent = `${labelSuffix} Sessions`;
+            document.getElementById('today-total').textContent = `${Math.round(totalMins)}m`;
+            document.getElementById('session-count').textContent = filteredSessions.length;
+
+            historyList.innerHTML = '<h3 class="text-xs uppercase opacity-40 font-bold mb-2">History</h3>';
+            filteredSessions.slice(-10).reverse().forEach(s => {
+                const date = new Date(s.timestamp).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'});
+                const day = new Date(s.timestamp).toLocaleDateString([], {month: 'short', day: 'numeric'});
+                const div = document.createElement('div');
+                div.className = 'flex justify-between items-center glass-panel p-5 rounded-2xl';
+                div.innerHTML = `
+                    <div class="flex flex-col">
+                        <span class="text-sm font-medium">${day}</span>
+                        <span class="text-[10px] opacity-40">${date}</span>
+                    </div>
+                    <span class="text-sky-400 font-bold">${Math.round(s.duration)}m</span>
+                `;
+                historyList.appendChild(div);
+            });
+        }
+
+        function renderChart(filter) {
+            const ctx = document.getElementById('focusChart').getContext('2d');
+            const sessions = JSON.parse(localStorage.getItem('focus_sessions') || '[]');
+            let labels = [];
+            let data = [];
+
+            if (filter === '24h') {
+                for (let i = 23; i >= 0; i--) {
+                    const h = new Date();
+                    h.setHours(h.getHours() - i, 0, 0, 0);
+                    labels.push(h.getHours() + ':00');
+                    const total = sessions.filter(s => s.timestamp >= h.getTime() && s.timestamp < h.getTime() + 3600000)
+                        .reduce((acc, s) => acc + s.duration, 0);
+                    data.push(Math.round(total));
+                }
+            } else if (filter === '7d' || filter === '30d') {
+                const days = filter === '7d' ? 7 : 30;
+                for (let i = days - 1; i >= 0; i--) {
+                    const d = new Date(); d.setDate(d.getDate() - i);
+                    labels.push(d.toLocaleDateString([], {month: 'numeric', day: 'numeric'}));
+                    const total = sessions.filter(s => s.timestamp >= new Date(d).setHours(0,0,0,0) && s.timestamp <= new Date(d).setHours(23,59,59,999))
+                        .reduce((acc, s) => acc + s.duration, 0);
+                    data.push(Math.round(total));
+                }
+            } else if (filter === '12m') {
+                for (let i = 11; i >= 0; i--) {
+                    const d = new Date(); d.setMonth(d.getMonth() - i);
+                    labels.push(d.toLocaleDateString([], {month: 'short'}));
+                    const total = sessions.filter(s => s.timestamp >= new Date(d.getFullYear(), d.getMonth(), 1).getTime() && s.timestamp <= new Date(d.getFullYear(), d.getMonth() + 1, 0).getTime())
+                        .reduce((acc, s) => acc + s.duration, 0);
+                    data.push(Math.round(total));
+                }
+            } else if (filter === 'custom') {
+                const start = new Date(startDateInput.value).setHours(0,0,0,0);
+                const end = new Date(endDateInput.value).setHours(23,59,59,999);
+                const diffDays = Math.ceil(Math.abs(end - start) / 86400000) + 1;
+                for (let i = 0; i < diffDays; i++) {
+                    const d = new Date(start); d.setDate(d.getDate() + i);
+                    labels.push(d.toLocaleDateString([], {month: 'numeric', day: 'numeric'}));
+                    const total = sessions.filter(s => s.timestamp >= d.getTime() && s.timestamp <= new Date(d).setHours(23,59,59,999))
+                        .reduce((acc, s) => acc + s.duration, 0);
+                    data.push(Math.round(total));
+                }
+            }
+
+            if (focusChart) focusChart.destroy();
+            focusChart = new Chart(ctx, {
+                type: 'bar',
+                data: { labels: labels, datasets: [{ data: data, backgroundColor: '#0ea5e9', borderRadius: 4 }] },
+                options: {
+                    maintainAspectRatio: false,
+                    plugins: { legend: { display: false } },
+                    scales: {
+                        y: { beginAtZero: true, grid: { color: 'rgba(255,255,255,0.05)' }, ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 9 } } },
+                        x: { grid: { display: false }, ticks: { color: 'rgba(255,255,255,0.3)', font: { size: 9 } } }
+                    }
+                }
+            });
+        }
+
+        init();
+    </script>
+</body>
+</html>
